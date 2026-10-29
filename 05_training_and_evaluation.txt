@@ -1,0 +1,54 @@
+ROLE
+You are a Python developer writing the INTEGRATION module. The four component modules already
+exist and are tested. Your job is only to wire them together.
+
+TASK
+Create `q_learning.py` with the training loop, policy extraction, and an evaluation demo for a
+Q-learning vacuum robot.
+
+CONTEXT (everything you need)
+- `from GridEnvironment import GridnEnvironment`
+    env.start_state (top-left (0, 0) in the lab sheet; always read it from env); env.rows, env.cols; env.obstacle; env.terminal_states {state: payoff}
+    env.get_transition(action) -> list of (probability, direction), e.g. [(0.8,'N'),(0.1,'E'),(0.1,'W')]
+    env.get_next_state(state, direction) -> next state after one move
+- Available functions with fixed signatures (import them; do not rewrite them):
+    from q_table import ACTIONS, init_q_table, best_actions
+    from action_selection import choose_action, decay_epsilon
+    from q_update import q_update
+- Model-free: the agent learns only from observed (state, action, reward, next_state). Use `env.get_transition` ONLY inside one helper `env_step(env, state, action)` that plays the role of the real world; the learning code must never read probabilities.
+- Stochastic dynamics: to take an action, sample the actual direction with
+  `random.choices(dirs, weights=probs, k=1)[0]` over `env.get_transition(action)`,
+  then call `env.get_next_state(state, actual_dir)`.
+
+REQUIREMENTS
+1. `train(env, episodes=5000, alpha=0.1, gamma=0.9, eps_start=1.0, eps_min=0.05,
+         eps_decay=0.999, max_steps=100, seed=None) -> dict`
+   - If `seed` is not None, call `random.seed(seed)`.
+   - Each episode starts at `env.start_state` and ends when a terminal state is reached or
+     `max_steps` is exceeded.
+   - Each step: choose an action, sample the real outcome, call `q_update`, move to the next state.
+   - Decay epsilon once per episode with `decay_epsilon`.
+   - Return the learned Q-table.
+2. `extract_policy(q_table, env) -> dict`
+   - Map every non-terminal, non-obstacle state to one best action
+     (use `best_actions` and take the first in `ACTIONS` order for determinism).
+3. `print_policy(policy, env)`
+   - Print a 4x4 grid: `^` for N, `v` for S, `>` for E, `<` for W, `X` for the obstacle, `T` for terminal states.
+4. `simulate(policy, env, max_steps=100) -> list`
+   - Follow the policy from `env.start_state` using the same stochastic sampling.
+     Print each step and whether it ended at the recharge spot (3, 3) or the trap (3, 1).
+     Return the list of visited states.
+5. `if __name__ == "__main__":`
+   - For each living cost in [-0.04, -0.1, -2.0]: build the environment, train, print the policy,
+     and run one simulation.
+
+CONSTRAINTS
+- Standard library only. Python 3.14.
+- Do NOT redefine the Q-table, reward, action-selection, or update logic. Import it.
+- Do NOT modify GridEnvironment.py, MDP.py, or any component module.
+- If an imported function does not behave as described, STOP and report the mismatch instead of working around it.
+
+DONE WHEN
+- `python q_learning.py` runs to completion for all three living costs.
+- Every printed policy has arrows only on non-terminal, non-obstacle cells.
+- With living_cost = -0.04, the policy at (3, 2) points `>` (toward the recharge spot).

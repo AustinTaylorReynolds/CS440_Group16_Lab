@@ -3,13 +3,13 @@ class GridnEnvironment:
         self.living_cost = living_cost
         self.rows = 4
         self.cols = 4
-        self.start_state = (0, 3)
+        self.start_state = (0, 0)
         self.obstacle = (1, 1)
         self.terminal_states = {(3, 1): -1, (3, 3): 10}
 
         # 4x4 Grid Layout for Lab 3
         self.grid = [
-            [0, 0, 0, "start"],
+            ["start", 0, 0, 0],
             [0, "X", 0, 0],
             [0, 0, 0, 0],
             [0, -1, 0, 10]
