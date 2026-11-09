@@ -23,8 +23,8 @@ start  0   0   0
 - `env.get_transition(action)` -> `[(prob, direction), ...]`
 - `env.get_next_state(state, direction)` -> next state
 
-## Approved exception to "do not modify existing files"
+## Approved exception to "do not modify existing files" (already applied)
 
-`GridEnvironment.py` still has `start_state = (0, 3)` (and "start" at the top right of `self.grid`) from Lab 3.
-The Lab 4 sheet puts the start at the top-left. Updating `start_state` to `(0, 0)` and moving the `"start"`
-marker in `self.grid` is the only permitted edit to that file. Do it once, then re-run `python MDP.py`.
+`GridEnvironment.py` once had `start_state = (0, 3)` from Lab 3. The Lab 4 sheet puts the start at the top-left,
+so it now reads `(0, 0)` and the `"start"` marker in `self.grid` is at the top-left. That was the only permitted
+edit to the file. A hook (`.claude/settings.json`) now blocks further edits to it.

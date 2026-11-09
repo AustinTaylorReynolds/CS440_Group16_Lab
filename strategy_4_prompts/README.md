@@ -1,66 +1,64 @@
-works on python 3.14.3
+# Strategy 4: Isolation via Sub-Agents
 
-# CS440 Group 16 Lab 4: Vacuum Robot (Q-Learning), Context Engineering Strategies 1 and 4
+The Q-learning task is split into five components. Each is built by a sub-agent that knows only its own job,
+so no agent can be confused by details that belong to another component (context confusion).
 
-A vacuum robot navigates a 4x4 grid. Lab 4 will have it learn with Q-learning without knowing the transition
-(T) or reward (R) models in advance. This repository is configured with context engineering
-**Strategy 1** and **Strategy 4**; the Q-learning implementation itself comes later.
+## Where things live
 
-## Where to look
+| What | Location |
+|------|----------|
+| The five isolated sub-agents (their whole spec is the file) | `.claude/agents/` |
+| The orchestrator (main agent) | `.claude/skills/build-q-learning/SKILL.md` |
+| Contract checker the orchestrator runs | `.claude/skills/build-q-learning/check_contract.py` |
+| Design notes: original orchestrator plan and what each agent may see | `00_orchestrator.txt`, `context_filter.md` (this folder) |
 
-| Strategy | Location | What it is |
-|----------|----------|------------|
-| **Strategy 1: Write (Persistent Memory)** | [`CLAUDE.md`](./CLAUDE.md), [`context/`](./context/), [`strategy_1_user_memory/`](./strategy_1_user_memory/) | The three memory tiers from the lecture slide (see below) |
-| **Strategy 4: Isolation via Sub-Agents** | [`strategy_4_prompts/`](./strategy_4_prompts/) | Orchestrator prompt, context filter, and five isolated sub-agent prompts |
+`00_orchestrator.txt` is the original plan. The skill supersedes it in one way: the update rule (04) now runs
+in parallel with 01 to 03, because the contract below fixes everything it needs.
 
-### Strategy 1: the three tiers
+## Run order
 
-| Tier (from the slide) | File here |
-|-----------------------|-----------|
-| Project Memory (`./CLAUDE.md`) | `CLAUDE.md`: architecture, code standards, workflow rules, shared via version control |
-| User Memory (`~/.claude/CLAUDE.md`) | `strategy_1_user_memory/CLAUDE.md`: example of personal preferences (copy it to `~/.claude/` to use it) |
-| Dynamic Imports (`@context.md`) | `context/environment.md`, `context/q_learning.md`, `context/verification.md`, imported from `CLAUDE.md` with `@` |
+In Claude Code, started from the repository root: `/build-q-learning`, then `/verify-lab`.
 
-### Strategy 4: orchestrator, filter, sub-agents
+1. Delegate 01, 02, 03, and 04 in one batch (parallel).
+2. Check each result: run its `__main__` self-checks, then `python .claude/skills/build-q-learning/check_contract.py <module>`.
+3. Delegate 05 once 01 to 04 pass.
+4. Run `python q_learning.py` and the verification checklist.
 
-`00_orchestrator.txt` (main agent) divides the Q-learning task. `context_filter.md` defines what each
-sub-agent may see. `01`–`05` are the isolated sub-agent prompts: Q-table setup, reward logic, action
-selection, Q-update rule, and training/evaluation. See `strategy_4_prompts/README.md` for the run order
-and interface contract.
+If an agent fails a check, fix that agent's definition file and re-run only that agent.
 
-## Project structure
+## Components
 
-```
-.
-├── CLAUDE.md                          # Strategy 1, tier 1: project memory
-├── README.md                          # this file
-├── context/                           # Strategy 1, tier 3: dynamic imports
-│   ├── environment.md
-│   ├── q_learning.md
-│   └── verification.md
-├── strategy_1_user_memory/            # Strategy 1, tier 2: example user memory
-│   └── CLAUDE.md
-├── strategy_4_prompts/                # Strategy 4: isolation via sub-agents
-│   ├── README.md
-│   ├── 00_orchestrator.txt
-│   ├── context_filter.md
-│   ├── 01_q_table_setup.txt
-│   ├── 02_reward_logic.txt
-│   ├── 03_action_selection.txt
-│   ├── 04_q_update_rule.txt
-│   └── 05_training_and_evaluation.txt
-├── GridEnvironment.py                 # environment (GridnEnvironment)
-├── MDP.py                             # value-iteration baseline
-├── hill.py                            # hill climbing (earlier lab)
-└── simulated.py                       # simulated annealing (earlier lab)
-```
+| # | Sub-agent (`.claude/agents/`) | Writes | Sees |
+|---|-------------------------------|--------|------|
+| 01 | `q-table-setup` | `q_table.py` | grid size, obstacle, action list |
+| 02 | `reward-logic` | `rewards.py` | `env.living_cost`, `env.terminal_states`, reward convention |
+| 03 | `action-selection` | `action_selection.py` | Q-table shape only |
+| 04 | `q-update-rule` | `q_update.py` | Q-table shape, reward convention, alpha and gamma |
+| 05 | `training-evaluation` | `q_learning.py` | the signatures below, not the internals of 01 to 04 |
 
-## Running the existing code
+The Context Filter is enforced by construction: each definition file holds only what its row allows, and the
+orchestrator's delegation message is the fixed line "Implement your component as described in your instructions."
 
-- Hill climbing: `python hill.py`
-- Simulated annealing: `python simulated.py`
-  The objective function just reads the matrix because that gives the score of the location. We chose 0.8 for the cooling rate by these steps:
-  - started with 0.995 to see it stay at a high temperature for long and found it ran many steps
-  - halved it to 0.5 and found it was getting close but not quite
-  - added 0.1 at a time and tested until 0.8, where it converged to the optimal state most of the time
-- Value iteration: `python MDP.py` (living costs -0.04, -0.1, -2.0)
+## Interface contract
+
+A state is a `(row, col)` tuple. The Q-table is a nested dict `q_table[state][action] -> float`.
+
+| Module | Name | Signature | Meaning |
+|--------|------|-----------|---------|
+| `q_table.py` | `ACTIONS` | `['N', 'S', 'E', 'W']` | the only definition of the action list |
+| | `init_q_table` | `(env) -> dict` | every cell except the obstacle, all actions at `0.0`; terminal cells present |
+| | `best_actions` | `(q_table, state) -> list` | actions tied for the max Q at `state`, in `ACTIONS` order |
+| `rewards.py` | `step_reward` | `(env, state, action, next_state) -> float` | `env.living_cost` on every step |
+| | `is_terminal` | `(env, state) -> bool` | state is in `env.terminal_states` |
+| | `terminal_payoff` | `(env, state) -> float` | payoff of a terminal state; `KeyError` otherwise |
+| `action_selection.py` | `choose_action` | `(q_table, state, epsilon) -> str` | epsilon-greedy, random tie-break |
+| | `decay_epsilon` | `(epsilon, eps_decay, eps_min) -> float` | `max(eps_min, epsilon * eps_decay)` |
+| `q_update.py` | `q_update` | `(q_table, state, action, reward, next_state, alpha, gamma, terminal_value=None) -> float` | one Q-learning update; `terminal_value` replaces `max Q(next_state)` when the next state is terminal |
+| `q_learning.py` | `env_step` | `(env, state, action) -> (reward, next_state, terminal_value)` | the simulated "real world" |
+| | `train`, `extract_policy`, `print_policy`, `simulate`, `compare_policies` | see `.claude/agents/training-evaluation.md` | |
+
+## Model-free rule
+
+The learner only sees observed `(state, action, reward, next_state)` tuples. `env.get_transition()` is read in
+exactly one place, `env_step` in `q_learning.py`, which stands in for the physical robot. `compare_policies`
+uses `MDP.py` (which does use T and R) for evaluation only.
